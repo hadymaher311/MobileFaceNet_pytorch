@@ -160,7 +160,7 @@ for epoch in range(start_epoch, TOTAL_EPOCH+1):
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
         torch.jit.save(torch.jit.script(net),
-            os.path.join(save_dir, '%03d.ckpt' % epoch))
+            os.path.join(save_dir, 'mobileface%03d.pt' % epoch))
         torch.save({
             'epoch': epoch,
             'net_state_dict': net_state_dict},
