@@ -35,24 +35,48 @@ class Bottleneck(nn.Module):
         else:
             return self.conv(x)
 
-class ConvBlock(nn.Module):
-    def __init__(self, inp, oup, k, s, p, dw=False, linear=False):
-        super(ConvBlock, self).__init__()
-        self.linear = linear
-        if dw:
-            self.conv = nn.Conv2d(inp, oup, k, s, p, groups=inp, bias=False)
-        else:
-            self.conv = nn.Conv2d(inp, oup, k, s, p, bias=False)
-        self.bn = nn.BatchNorm2d(oup)
-        if not linear:
-            self.prelu = nn.PReLU(oup)
+class ConvBlockLinear(nn.Module):
+    def __init__(self, inp, oup, k, s, p, dw=False):
+        super(ConvBlockLinear, self).__init__()
+        self.conv = nn.Conv2d(inp, oup, k, s, p, bias=False)
+        self.batch_norm = nn.BatchNorm2d(oup)
     def forward(self, x):
         x = self.conv(x)
-        x = self.bn(x)
-        if self.linear:
-            return x
-        else:
-            return self.prelu(x)
+        x = self.batch_norm(x)
+        return x
+
+class ConvBlockLinearDW(nn.Module):
+    def __init__(self, inp, oup, k, s, p):
+        super(ConvBlockLinearDW, self).__init__()
+        self.conv = nn.Conv2d(inp, oup, k, s, p, groups=inp, bias=False)
+        self.batch_norm = nn.BatchNorm2d(oup)
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.batch_norm(x)
+        return x
+        
+
+class ConvBlock(nn.Module):
+    def __init__(self, inp, oup, k, s, p, dw=False):
+        super(ConvBlock, self).__init__()
+        self.conv = nn.Conv2d(inp, oup, k, s, p, bias=False)
+        self.batch_norm = nn.BatchNorm2d(oup)
+        self.p_relu = nn.PReLU(oup)
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.batch_norm(x)
+        return self.p_relu(x)
+
+class ConvBlockDW(nn.Module):
+    def __init__(self, inp, oup, k, s, p, dw=False):
+        super(ConvBlockDW, self).__init__()
+        self.conv = nn.Conv2d(inp, oup, k, s, p, groups=inp, bias=False)
+        self.batch_norm = nn.BatchNorm2d(oup)
+        self.p_relu = nn.PReLU(oup)
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.batch_norm(x)
+        return self.p_relu(x)
 
 Mobilefacenet_bottleneck_setting = [
     # t, c , n ,s
@@ -80,7 +104,7 @@ class MobileFacenet(nn.Module):
 
         self.conv1 = ConvBlock(3, 64, 3, 2, 1)
 
-        self.dw_conv1 = ConvBlock(64, 64, 3, 1, 1, dw=True)
+        self.dw_conv1 = ConvBlockDW(64, 64, 3, 1, 1)
 
         self.inplanes = 64
         block = Bottleneck
@@ -88,9 +112,9 @@ class MobileFacenet(nn.Module):
 
         self.conv2 = ConvBlock(128, 512, 1, 1, 0)
 
-        self.linear7 = ConvBlock(512, 512, (7, 6), 1, 0, dw=True, linear=True)
+        self.linear7 = ConvBlockLinearDW(512, 512, (7, 6), 1, 0)
 
-        self.linear1 = ConvBlock(512, 128, 1, 1, 0, linear=True)
+        self.linear1 = ConvBlockLinear(512, 128, 1, 1, 0)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -164,4 +188,5 @@ if __name__ == "__main__":
     net = MobileFacenet()
     print(net)
     x = net(input)
-    print(x.shape)
+    torch.jit.save(torch.jit.script(net), "mobileface.pt")
+    # print(x.shape)
