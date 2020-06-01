@@ -15,7 +15,7 @@ import time
 from lfw_eval import parseList, evaluation_10_fold
 import numpy as np
 import scipy.io
-
+torch.manual_seed(172305)
 # gpu init
 gpu_list = ''
 multi_gpus = False
@@ -60,27 +60,11 @@ if RESUME:
     net.load_state_dict(ckpt['net_state_dict'])
     start_epoch = ckpt['epoch'] + 1
 
-
-# define optimizers
-ignored_params = list(map(id, net.linear1.parameters()))
-ignored_params += list(map(id, ArcMargin.weight))
-prelu_params_id = []
-prelu_params = []
-for m in net.modules():
-    if isinstance(m, nn.PReLU):
-        ignored_params += list(map(id, m.parameters()))
-        prelu_params += m.parameters()
-base_params = filter(lambda p: id(p) not in ignored_params, net.parameters())
-
-optimizer_ft = optim.SGD([
-    {'params': base_params, 'weight_decay': 4e-5},
-    {'params': net.linear1.parameters(), 'weight_decay': 4e-4},
-    {'params': ArcMargin.weight, 'weight_decay': 4e-4},
-    {'params': prelu_params, 'weight_decay': 0.0}
-], lr=0.1, momentum=0.9, nesterov=True)
-
-exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[36, 52, 58], gamma=0.1)
-
+params = []
+for param in net.parameters():
+    params.append(param)
+params.append(ArcMargin.weight)
+optimizer_ft = optim.SGD(params, lr=0.1, weight_decay=4e-4, momentum=0.9, nesterov=True)
 
 net = net.cuda()
 ArcMargin = ArcMargin.cuda()
@@ -111,7 +95,6 @@ for epoch in range(start_epoch, TOTAL_EPOCH+1):
         total_loss = criterion(output, label)
         total_loss.backward()
         optimizer_ft.step()
-        exp_lr_scheduler.step()
 
         train_total_loss += total_loss.item() * batch_size
         total += batch_size
@@ -121,7 +104,7 @@ for epoch in range(start_epoch, TOTAL_EPOCH+1):
     loss_msg = '    total_loss: {:.4f} time: {:.0f}m {:.0f}s'\
         .format(train_total_loss, time_elapsed // 60, time_elapsed % 60)
     _print(loss_msg)
-
+    
     # test model on lfw
     if epoch % TEST_FREQ == 0:
         net.eval()
